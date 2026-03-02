@@ -1,0 +1,8 @@
+{
+  "LogisticRegression": {
+    "accuracy": 1.0
+  },
+  "LinearSVC": {
+    "accuracy": 1.0
+  }
+}

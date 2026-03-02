@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Recommendations from Reviews</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0f1117;--card:#1a1d27;--accent:#6c63ff;--pos:#22c55e;--neg:#ef4444;--text:#e2e8f0;--muted:#94a3b8;--border:#2d3148;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;min-height:100vh}
+  header{background:linear-gradient(135deg,#1e1b4b,#312e81);padding:20px 40px;display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--border)}
+  header h1{font-size:1.6rem;font-weight:700}header span{font-size:.9rem;color:var(--muted)}
+  .badge{background:var(--accent);color:#fff;padding:3px 10px;border-radius:20px;font-size:.75rem}
+  nav{display:flex;gap:4px;padding:12px 40px;background:var(--card);border-bottom:1px solid var(--border)}
+  nav button{padding:8px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.9rem;background:transparent;color:var(--muted);transition:.2s}
+  nav button.active,nav button:hover{background:var(--accent);color:#fff}
+  main{padding:30px 40px;max-width:1300px;margin:0 auto}
+  .panel{display:none}.panel.active{display:block}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+  .card h2{font-size:1.1rem;margin-bottom:16px;color:var(--text)}
+  textarea,input[type=text]{width:100%;background:#0d0f1a;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px;font-size:.95rem;resize:vertical}
+  textarea:focus,input:focus{outline:2px solid var(--accent)}
+  select{background:#0d0f1a;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:.9rem}
+  .btn{padding:12px 28px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.95rem;transition:.2s}
+  .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#5b52e0}
+  .btn-secondary{background:#2d3148;color:var(--text)}.btn-secondary:hover{background:#3d4168}
+  .flex{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .result-box{border-radius:10px;padding:20px;margin-top:16px;border:1px solid}
+  .result-pos{border-color:var(--pos);background:rgba(34,197,94,.08)}
+  .result-neg{border-color:var(--neg);background:rgba(239,68,68,.08)}
+  .sentiment-tag{display:inline-block;padding:4px 14px;border-radius:20px;font-weight:700;font-size:1rem}
+  .tag-pos{background:rgba(34,197,94,.2);color:var(--pos)}
+  .tag-neg{background:rgba(239,68,68,.2);color:var(--neg)}
+  .meter{height:10px;border-radius:5px;background:#2d3148;margin:8px 0}
+  .meter-fill{height:100%;border-radius:5px;transition:width .6s ease}
+  .fill-pos{background:var(--pos)}.fill-neg{background:var(--neg)}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th,td{padding:10px 14px;border-bottom:1px solid var(--border);text-align:left}
+  th{background:#12142a;color:var(--muted);font-weight:600}
+  tr:hover{background:rgba(108,99,255,.05)}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center}
+  .stat-num{font-size:2rem;font-weight:700}.stat-label{color:var(--muted);font-size:.85rem;margin-top:4px}
+  .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:768px){.chart-row{grid-template-columns:1fr}nav{flex-wrap:wrap}main{padding:20px}}
+  .spinner{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .upload-area{border:2px dashed var(--border);border-radius:10px;padding:30px;text-align:center;cursor:pointer;transition:.2s}
+  .upload-area:hover{border-color:var(--accent);background:rgba(108,99,255,.04)}
+  input[type=file]{display:none}
+  .tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .tag{background:#2d3148;padding:3px 10px;border-radius:12px;font-size:.8rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🛍️ Recommendations from Reviews</h1>
+    <span>NLP Sentiment &amp; Prediction Analysis Platform</span>
+  </div>
+  <div class="badge">Amazon Reviews AI</div>
+</header>
+
+<nav>
+  <button class="active" onclick="showPanel('single',this)">🔍 Single Review</button>
+  <button onclick="showPanel('batch',this)">📋 Bulk Analysis</button>
+  <button onclick="showPanel('upload',this)">📤 CSV Upload</button>
+  <button onclick="showPanel('history',this)">📜 History</button>
+  <button onclick="showPanel('analytics',this)">📊 Analytics</button>
+  <button onclick="showPanel('docs',this)">📖 API Docs</button>
+</nav>
+
+<main>
+
+<!-- SINGLE REVIEW -->
+<div id="panel-single" class="panel active">
+  <div class="card">
+    <h2>🔍 Analyze a Single Review</h2>
+    <textarea id="single-text" rows="5" placeholder="Paste an Amazon product review here...
+Example: This wireless headphone is absolutely amazing! Great sound quality and battery life."></textarea>
+    <div class="flex" style="margin-top:12px">
+      <select id="single-model">
+        <option value="classical">TF-IDF + LogisticRegression</option>
+        <option value="lstm">LSTM (Deep Learning)</option>
+      </select>
+      <button class="btn btn-primary" onclick="analyzeSingle()">🧠 Analyze Sentiment</button>
+      <button class="btn btn-secondary" onclick="clearSingle()">✖ Clear</button>
+    </div>
+    <div id="single-result"></div>
+  </div>
+  <div class="card">
+    <h2>🧪 Preprocessing Preview</h2>
+    <button class="btn btn-secondary" onclick="previewPreprocess()">👁 Show Preprocessing Steps</button>
+    <div id="preprocess-result"></div>
+  </div>
+</div>
+
+<!-- BATCH -->
+<div id="panel-batch" class="panel">
+  <div class="card">
+    <h2>📋 Bulk Review Analysis (one review per line)</h2>
+    <textarea id="batch-text" rows="10" placeholder="Paste multiple reviews, one per line:
+This product is fantastic! Works perfectly.
+Terrible quality, broke after one day.
+Average item, nothing special.
+..."></textarea>
+    <div class="flex" style="margin-top:12px">
+      <select id="batch-model">
+        <option value="classical">TF-IDF + LogisticRegression</option>
+        <option value="lstm">LSTM (Deep Learning)</option>
+      </select>
+      <button class="btn btn-primary" onclick="analyzeBatch()">🚀 Analyze All</button>
+    </div>
+    <div id="batch-result"></div>
+  </div>
+</div>
+
+<!-- UPLOAD -->
+<div id="panel-upload" class="panel">
+  <div class="card">
+    <h2>📤 Upload CSV File</h2>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:.9rem">CSV must have a column named <strong>review_text</strong> (or text/review). Max 500 rows.</p>
+    <div class="upload-area" onclick="document.getElementById('csv-file').click()">
+      <input type="file" id="csv-file" accept=".csv" onchange="handleFileSelect(this)"/>
+      <div id="upload-placeholder">
+        <p style="font-size:2rem">📁</p>
+        <p>Click to select CSV file</p>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:6px">Supported: .csv with review_text column</p>
+      </div>
+    </div>
+    <div class="flex" style="margin-top:16px">
+      <select id="upload-model">
+        <option value="classical">TF-IDF + LogisticRegression</option>
+        <option value="lstm">LSTM (Deep Learning)</option>
+      </select>
+      <button class="btn btn-primary" onclick="uploadAnalyze()">📊 Analyze CSV</button>
+    </div>
+    <div id="upload-result"></div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div id="panel-history" class="panel">
+  <div class="card">
+    <h2>📜 Prediction History</h2>
+    <div class="flex" style="margin-bottom:16px">
+      <button class="btn btn-primary" onclick="loadHistory()">🔄 Refresh</button>
+      <select id="history-limit" onchange="loadHistory()">
+        <option value="50">Last 50</option>
+        <option value="100" selected>Last 100</option>
+        <option value="200">Last 200</option>
+      </select>
+    </div>
+    <div id="history-table"><p style="color:var(--muted)">Click Refresh to load history.</p></div>
+  </div>
+</div>
+
+<!-- ANALYTICS -->
+<div id="panel-analytics" class="panel">
+  <div id="stats-grid" class="stat-grid"></div>
+  <div class="chart-row">
+    <div class="card"><h2>📈 Sentiment Distribution</h2><canvas id="chart-donut" height="260"></canvas></div>
+    <div class="card"><h2>🎯 Confidence Distribution</h2><canvas id="chart-conf" height="260"></canvas></div>
+  </div>
+  <div class="card"><h2>📅 Predictions Timeline</h2><canvas id="chart-timeline" height="200"></canvas></div>
+</div>
+
+<!-- API DOCS -->
+<div id="panel-docs" class="panel">
+  <div class="card">
+    <h2>📖 REST API Documentation</h2>
+    <div style="font-family:monospace;font-size:.9rem;line-height:1.8">
+      <p><strong style="color:var(--pos)">GET</strong>  /api/health — Health check</p>
+      <p><strong style="color:var(--accent)">POST</strong> /api/predict — Single review prediction</p>
+      <pre style="background:#0d0f1a;padding:12px;border-radius:8px;margin:8px 0;overflow:auto">{"text": "This product is amazing!", "model": "classical"}</pre>
+      <p><strong style="color:var(--accent)">POST</strong> /api/predict/batch — Batch prediction</p>
+      <pre style="background:#0d0f1a;padding:12px;border-radius:8px;margin:8px 0;overflow:auto">{"texts": ["review 1", "review 2", ...], "model": "classical"}</pre>
+      <p><strong style="color:var(--accent)">POST</strong> /api/upload — CSV file upload (multipart/form-data)</p>
+      <p><strong style="color:var(--pos)">GET</strong>  /api/history?limit=100 — Prediction history</p>
+      <p><strong style="color:var(--pos)">GET</strong>  /api/stats — Analytics statistics</p>
+      <p><strong style="color:var(--accent)">POST</strong> /api/preprocess — Preview text preprocessing</p>
+      <hr style="border-color:var(--border);margin:16px 0"/>
+      <p><strong>Response format (predict):</strong></p>
+      <pre style="background:#0d0f1a;padding:12px;border-radius:8px;margin:8px 0;overflow:auto">{"label": 1, "sentiment": "positive", "confidence": 0.923, "cleaned_text": "..."}</pre>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+const API = 'http://127.0.0.1:5000';  // same origin
+
+function showPanel(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='analytics') loadAnalytics();
+  if(name==='history') loadHistory();
+}
+
+function sentimentHTML(r) {
+  const isPos = r.label === 1;
+  const pct = Math.round(r.confidence * 100);
+  return `<div class="result-box ${isPos?'result-pos':'result-neg'}">
+    <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <span class="sentiment-tag ${isPos?'tag-pos':'tag-neg'}">${isPos?'✅ POSITIVE':'❌ NEGATIVE'}</span>
+      <span style="color:var(--muted);font-size:.9rem">Confidence: <strong>${pct}%</strong></span>
+    </div>
+    <div class="meter"><div class="meter-fill ${isPos?'fill-pos':'fill-neg'}" style="width:${pct}%"></div></div>
+    ${r.cleaned_text ? `<p style="color:var(--muted);font-size:.82rem;margin-top:8px">Processed: ${r.cleaned_text.substring(0,200)}${r.cleaned_text.length>200?'...':''}</p>`:''}
+  </div>`;
+}
+
+async function analyzeSingle() {
+  const text = document.getElementById('single-text').value.trim();
+  const model = document.getElementById('single-model').value;
+  if(!text){alert('Please enter a review.');return;}
+  const el = document.getElementById('single-result');
+  el.innerHTML = '<br><span class="spinner"></span> Analyzing...';
+  try {
+    const res = await fetch(`${API}/api/predict`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,model})});
+    const data = await res.json();
+    el.innerHTML = sentimentHTML(data);
+  } catch(e){ el.innerHTML = `<p style="color:var(--neg)">Error: ${e.message}</p>`; }
+}
+
+async function previewPreprocess() {
+  const text = document.getElementById('single-text').value.trim();
+  if(!text){alert('Enter a review first.');return;}
+  const el = document.getElementById('preprocess-result');
+  el.innerHTML = '<br><span class="spinner"></span>';
+  try {
+    const res = await fetch(`${API}/api/preprocess`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    const d = await res.json();
+    el.innerHTML = `<div style="margin-top:14px">
+      <p><strong>Original:</strong> <span style="color:var(--muted)">${d.original}</span></p>
+      <p style="margin-top:8px"><strong>Cleaned:</strong> <span style="color:var(--pos)">${d.cleaned}</span></p>
+      <div class="tag-list">${d.tokens.slice(0,30).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+    </div>`;
+  } catch(e){el.innerHTML=`<p style="color:var(--neg)">${e.message}</p>`;}
+}
+
+function clearSingle(){document.getElementById('single-text').value='';document.getElementById('single-result').innerHTML='';document.getElementById('preprocess-result').innerHTML='';}
+
+async function analyzeBatch() {
+  const raw   = document.getElementById('batch-text').value.trim();
+  const model = document.getElementById('batch-model').value;
+  const texts = raw.split('\n').map(t=>t.trim()).filter(Boolean);
+  if(!texts.length){alert('Enter at least one review.');return;}
+  const el = document.getElementById('batch-result');
+  el.innerHTML = '<br><span class="spinner"></span> Analyzing...';
+  try {
+    const res = await fetch(`${API}/api/predict/batch`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texts,model})});
+    const d = await res.json();
+    el.innerHTML = renderBatchResult(d);
+  } catch(e){el.innerHTML=`<p style="color:var(--neg)">${e.message}</p>`;}
+}
+
+function renderBatchResult(d) {
+  const posP = Math.round(d.positive/d.total*100);
+  const rows = d.results.map((r,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td style="max-width:350px">${(d.results[i]?r.cleaned_text||'':'').substring(0,80)}...</td>
+      <td><span class="sentiment-tag ${r.label?'tag-pos':'tag-neg'}">${r.label?'✅ POS':'❌ NEG'}</span></td>
+      <td>${Math.round(r.confidence*100)}%</td>
+    </tr>`).join('');
+  return `<div style="margin-top:16px">
+    <div class="stat-grid" style="margin-bottom:16px">
+      <div class="stat-card"><div class="stat-num">${d.total}</div><div class="stat-label">Total</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--pos)">${d.positive}</div><div class="stat-label">Positive</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--neg)">${d.negative}</div><div class="stat-label">Negative</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--accent)">${posP}%</div><div class="stat-label">Positive Rate</div></div>
+    </div>
+    <div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Review</th><th>Sentiment</th><th>Confidence</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+}
+
+let selectedFile = null;
+function handleFileSelect(input) {
+  selectedFile = input.files[0];
+  if(selectedFile) document.getElementById('upload-placeholder').innerHTML=`<p>📄 ${selectedFile.name}</p><p style="color:var(--pos);font-size:.85rem">Ready to analyze</p>`;
+}
+
+async function uploadAnalyze() {
+  if(!selectedFile){alert('Select a CSV file first.');return;}
+  const model = document.getElementById('upload-model').value;
+  const el = document.getElementById('upload-result');
+  el.innerHTML = '<br><span class="spinner"></span> Processing CSV...';
+  const fd = new FormData();
+  fd.append('file', selectedFile); fd.append('model', model);
+  try {
+    const res = await fetch(`${API}/api/upload`,{method:'POST',body:fd});
+    const d = await res.json();
+    el.innerHTML = renderBatchResult(d);
+  } catch(e){el.innerHTML=`<p style="color:var(--neg)">${e.message}</p>`;}
+}
+
+async function loadHistory() {
+  const limit = document.getElementById('history-limit').value;
+  const el = document.getElementById('history-table');
+  el.innerHTML = '<span class="spinner"></span>';
+  try {
+    const res = await fetch(`${API}/api/history?limit=${limit}`);
+    const rows = await res.json();
+    if(!rows.length){el.innerHTML='<p style="color:var(--muted)">No predictions yet.</p>';return;}
+    const trs = rows.map(r=>`<tr>
+      <td>${r.id}</td>
+      <td style="max-width:320px">${(r.review_text||'').substring(0,80)}...</td>
+      <td><span class="sentiment-tag ${r.label?'tag-pos':'tag-neg'}">${r.label?'✅ POS':'❌ NEG'}</span></td>
+      <td>${Math.round(r.confidence*100)}%</td>
+      <td style="color:var(--muted);font-size:.8rem">${r.model_used}</td>
+      <td style="color:var(--muted);font-size:.8rem">${r.created_at.substring(0,16)}</td>
+    </tr>`).join('');
+    el.innerHTML = `<div style="overflow-x:auto"><table><thead><tr><th>ID</th><th>Review</th><th>Sentiment</th><th>Confidence</th><th>Model</th><th>Date</th></tr></thead><tbody>${trs}</tbody></table></div>`;
+  } catch(e){el.innerHTML=`<p style="color:var(--neg)">${e.message}</p>`;}
+}
+
+let donutChart=null, confChart=null, timeChart=null;
+async function loadAnalytics() {
+  try {
+    const res  = await fetch(`${API}/api/stats`);
+    const stat = await res.json();
+    const hist = await (await fetch(`${API}/api/history?limit=200`)).json();
+
+    document.getElementById('stats-grid').innerHTML = `
+      <div class="stat-card"><div class="stat-num">${stat.total}</div><div class="stat-label">Total Predictions</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--pos)">${stat.positive}</div><div class="stat-label">Positive Reviews</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--neg)">${stat.negative}</div><div class="stat-label">Negative Reviews</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--accent)">${Math.round(stat.avg_confidence*100)}%</div><div class="stat-label">Avg Confidence</div></div>`;
+
+    // Donut
+    if(donutChart)donutChart.destroy();
+    donutChart = new Chart(document.getElementById('chart-donut'),{
+      type:'doughnut',
+      data:{labels:['Positive','Negative'],
+            datasets:[{data:[stat.positive,stat.negative],
+                       backgroundColor:['rgba(34,197,94,.8)','rgba(239,68,68,.8)'],
+                       borderWidth:0}]},
+      options:{plugins:{legend:{labels:{color:'#e2e8f0'}}}}});
+
+    // Confidence histogram
+    const bins = Array(10).fill(0);
+    hist.forEach(r=>{const i=Math.min(9,Math.floor(r.confidence*10));bins[i]++;});
+    if(confChart)confChart.destroy();
+    confChart = new Chart(document.getElementById('chart-conf'),{
+      type:'bar',
+      data:{labels:['0-10','10-20','20-30','30-40','40-50','50-60','60-70','70-80','80-90','90-100'],
+            datasets:[{label:'Count',data:bins,backgroundColor:'rgba(108,99,255,.75)',borderRadius:4}]},
+      options:{scales:{x:{ticks:{color:'#94a3b8'}},y:{ticks:{color:'#94a3b8'}}},plugins:{legend:{display:false}}}});
+
+    // Timeline
+    const byDate={};
+    hist.forEach(r=>{const d=r.created_at.substring(0,10);byDate[d]=(byDate[d]||0)+1;});
+    const dates=Object.keys(byDate).sort();
+    if(timeChart)timeChart.destroy();
+    timeChart = new Chart(document.getElementById('chart-timeline'),{
+      type:'line',
+      data:{labels:dates,datasets:[{label:'Predictions',data:dates.map(d=>byDate[d]),
+            borderColor:'#6c63ff',backgroundColor:'rgba(108,99,255,.15)',fill:true,tension:.4,pointRadius:4}]},
+      options:{scales:{x:{ticks:{color:'#94a3b8'}},y:{ticks:{color:'#94a3b8'}}},plugins:{legend:{labels:{color:'#e2e8f0'}}}}});
+  } catch(e){console.error('Analytics error:',e);}
+}
+
+// Load analytics on initial if needed
+window.addEventListener('load', ()=>{ /* preload nothing */ });
+</script>
+</body>
+</html>
