@@ -1,8 +1,13 @@
-import streamlit as st
-import pandas as pd
+import subprocess
 import sys
+
+# Install required packages first
+subprocess.run([sys.executable, "-m", "pip", "install", "nltk", "scikit-learn", "torch", "joblib", "SQLAlchemy", "tqdm"], capture_output=True)
+
 import os
 import nltk
+import pandas as pd
+import streamlit as st
 
 # Download NLTK data
 nltk.download('punkt', quiet=True)
@@ -16,6 +21,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(BASE_DIR, 'backend')
 sys.path.insert(0, BASE_DIR)
 sys.path.insert(0, BACKEND_DIR)
+os.chdir(BASE_DIR)
 
 st.set_page_config(
     page_title="Recommendations from Reviews",
@@ -23,36 +29,39 @@ st.set_page_config(
     layout="wide"
 )
 
-@st.cache_resource
-def setup():
-    os.chdir(BASE_DIR)
+st.title("🛍️ Recommendations from Reviews")
+st.markdown("**NLP Sentiment and Prediction Analysis Platform**")
+st.markdown("---")
 
+@st.cache_resource
+def load_everything():
     # Generate dataset if missing
-    if not os.path.exists(os.path.join(BASE_DIR, "amazon_reviews.csv")):
-        st.info("Generating dataset...")
+    csv_path = os.path.join(BASE_DIR, "amazon_reviews.csv")
+    if not os.path.exists(csv_path):
         sys.path.insert(0, os.path.join(BASE_DIR, "Data"))
         from dataset import generate_dataset
-        generate_dataset(5000, os.path.join(BASE_DIR, "amazon_reviews.csv"))
+        generate_dataset(5000, csv_path)
 
     # Train models if missing
     models_dir = os.path.join(BASE_DIR, "models")
     os.makedirs(models_dir, exist_ok=True)
-    if not os.path.exists(os.path.join(models_dir, "tfidf_vectorizer.pkl")):
-        st.info("Training models — please wait 3 minutes...")
+    vec_path = os.path.join(models_dir, "tfidf_vectorizer.pkl")
+    if not os.path.exists(vec_path):
         from model_train import load_data, train_classical, train_lstm
-        df = load_data(os.path.join(BASE_DIR, "amazon_reviews.csv"))
+        df = load_data(csv_path)
         train_classical(df)
-        train_lstm(df, epochs=3)
+        train_lstm(df, epochs=2)
 
     from predictor import predict_text, predict_batch
     return predict_text, predict_batch
 
-with st.spinner("Loading AI models..."):
-    predict_text, predict_batch = setup()
-
-st.title("🛍️ Recommendations from Reviews")
-st.markdown("**NLP Sentiment and Prediction Analysis Platform**")
-st.markdown("---")
+with st.spinner("🔄 Loading AI Models — please wait..."):
+    try:
+        predict_text, predict_batch = load_everything()
+        st.success("✅ Models loaded successfully!")
+    except Exception as e:
+        st.error(f"Error loading models: {e}")
+        st.stop()
 
 tab1, tab2, tab3 = st.tabs([
     "🔍 Single Review",
@@ -67,11 +76,7 @@ with tab1:
         height=150,
         placeholder="This product is absolutely amazing! Works perfectly."
     )
-    model = st.selectbox(
-        "Select Model:",
-        ["classical", "lstm"],
-        key="m1"
-    )
+    model = st.selectbox("Select Model:", ["classical", "lstm"], key="m1")
     if st.button("🧠 Analyze Sentiment", key="btn1"):
         if text.strip():
             with st.spinner("Analyzing..."):
@@ -81,10 +86,7 @@ with tab1:
                 "Sentiment",
                 "✅ POSITIVE" if result['label'] == 1 else "❌ NEGATIVE"
             )
-            col2.metric(
-                "Confidence",
-                f"{result['confidence']*100:.1f}%"
-            )
+            col2.metric("Confidence", f"{result['confidence']*100:.1f}%")
             col3.metric("Label", result['label'])
             if result['label'] == 1:
                 st.success("Positive Review Detected!")
@@ -99,16 +101,11 @@ with tab2:
     reviews_input = st.text_area(
         "Enter one review per line:",
         height=200,
-        placeholder="This product is fantastic!\nTerrible quality, broke after one day.\nAmazing value for money!"
+        placeholder="This product is fantastic!\nTerrible quality, broke after one day."
     )
-    model2 = st.selectbox(
-        "Select Model:",
-        ["classical", "lstm"],
-        key="m2"
-    )
+    model2 = st.selectbox("Select Model:", ["classical", "lstm"], key="m2")
     if st.button("🚀 Analyze All", key="btn2"):
-        texts = [t.strip() for t in reviews_input.split('\n')
-                 if t.strip()]
+        texts = [t.strip() for t in reviews_input.split('\n') if t.strip()]
         if texts:
             with st.spinner(f"Analyzing {len(texts)} reviews..."):
                 results = predict_batch(texts, model2)
@@ -121,8 +118,7 @@ with tab2:
             st.bar_chart({"Positive": [pos], "Negative": [neg]})
             df = pd.DataFrame([{
                 "Review": t[:80],
-                "Sentiment": "✅ Positive" if r['label'] == 1
-                             else "❌ Negative",
+                "Sentiment": "✅ Positive" if r['label'] == 1 else "❌ Negative",
                 "Confidence": f"{r['confidence']*100:.1f}%",
                 "Label": r['label']
             } for t, r in zip(texts, results)])
@@ -134,11 +130,7 @@ with tab3:
     st.subheader("Upload CSV File")
     st.markdown("CSV must have a column named **review_text**")
     uploaded = st.file_uploader("Choose CSV file", type="csv")
-    model3 = st.selectbox(
-        "Select Model:",
-        ["classical", "lstm"],
-        key="m3"
-    )
+    model3 = st.selectbox("Select Model:", ["classical", "lstm"], key="m3")
     if uploaded is not None:
         df_in = pd.read_csv(uploaded)
         st.write(f"File loaded: {len(df_in)} rows")
